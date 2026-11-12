@@ -31,7 +31,8 @@ export function Dialogo({ titulo, children, fechar }: { titulo: string; children
       <h2 id={id} className="!mb-0 text-xl">{titulo}</h2>
       <button type="button" className="botao-icone" data-fechar onClick={fechar} aria-label="Fechar diálogo"><X size={20} aria-hidden /></button>
     </div>
-    <div className="min-h-0 overflow-y-auto pr-1">{children}</div>
+    {/* A rolagem recorta contornos externos; amplie sua área sem desalinhá-la do título. */}
+    <div className="min-h-0 min-w-0 overflow-y-auto -mx-2 px-2 py-2">{children}</div>
   </dialog>;
 }
 
