@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { Link } from 'react-router-dom';
 import { listarTags, listarTipos } from '../servicos/catalogo';
 import { FiltrosCatalogo as Filtros } from '../dominio/catalogo';
 import { Dialogo } from './Dialogo';
@@ -11,10 +12,16 @@ export function FiltrosCatalogo({ filtros, aplicar, fechar, tagFixa }: {
   const [rascunho, setRascunho] = useState(filtros);
   const tipos = useQuery({ queryKey: ['tipos'], queryFn: listarTipos, staleTime: 600_000 });
   const tags = useQuery({ queryKey: ['tags'], queryFn: listarTags, staleTime: 300_000 });
-  function mudar<K extends keyof Filtros>(chave: K, valor: Filtros[K]) { setRascunho(f => ({ ...f, [chave]: valor })); }
+  const possuiTags = tags.isSuccess && tags.data.length > 0;
+  const exibirOperador = possuiTags && !rascunho.semTag && rascunho.tags.length >= 2;
+
+  function mudar<K extends keyof Filtros>(chave: K, valor: Filtros[K]) {
+    setRascunho(f => ({ ...f, [chave]: valor }));
+  }
+
   return <Dialogo titulo="Filtrar parâmetros" fechar={fechar}>
     <form onSubmit={e => { e.preventDefault(); aplicar(rascunho); fechar(); }}>
-      <p className="dica">Combine critérios para encontrar a configuração certa.</p>
+      <p className="dica !mb-4">Combine critérios para encontrar a configuração certa.</p>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4">
         <label className="campo"><span>Tipo</span><select value={rascunho.tipo ?? ''} onChange={e => mudar('tipo', e.target.value || undefined)}>
           <option value="">Todos os tipos</option>{(tipos.data ?? []).map(t => <option key={t.codigo}>{t.codigo}</option>)}
@@ -31,22 +38,43 @@ export function FiltrosCatalogo({ filtros, aplicar, fechar, tagFixa }: {
       </div>
       {tipos.isLoading && <p role="status" className="dica">Carregando tipos…</p>}
       {tipos.error && <ErroCarregamento erro={tipos.error} aoTentarNovamente={() => void tipos.refetch()} />}
-      <fieldset className="border-t border-linha pt-4 mb-5"><legend className="font-semibold pr-3">Tags</legend>
-        {!tagFixa && <label className="alternancia mb-3"><input type="checkbox" checked={rascunho.semTag} onChange={e => setRascunho(f => ({ ...f, semTag: e.target.checked, tags: [] }))} />Somente parâmetros sem tag</label>}
-        {tags.isLoading && <p role="status" className="dica">Carregando tags…</p>}
-        {tags.error && <ErroCarregamento erro={tags.error} aoTentarNovamente={() => void tags.refetch()} />}
-        {!rascunho.semTag && <>
-          <div className="max-h-48 overflow-y-auto grid grid-cols-1 sm:grid-cols-2 gap-1 mb-3">
-            {(tags.data ?? []).map(t => <label className="alternancia" key={t.id}><input type="checkbox" disabled={t.id === tagFixa}
-              checked={rascunho.tags.includes(t.id)} onChange={e => mudar('tags', e.target.checked ? [...rascunho.tags,t.id] : rascunho.tags.filter(id => id !== t.id))} />{t.nome}</label>)}
-            {tags.data?.length === 0 && <p className="dica">Nenhuma tag cadastrada.</p>}
-          </div>
-          <label className="campo"><span>Combinação de tags</span><select value={rascunho.operador} onChange={e => mudar('operador', e.target.value as Filtros['operador'])}>
-            <option value="OU">Qualquer uma das tags</option><option value="E">Todas as tags</option>
-          </select></label>
-        </>}
+
+      <fieldset className="border-t border-linha pt-3 !mb-4 min-w-0">
+        <legend className="font-semibold pr-3">Tags</legend>
+        <div className="flex flex-col gap-2">
+          {!tagFixa && <label className="alternancia !mb-0">
+            <input type="checkbox" checked={rascunho.semTag}
+              onChange={e => setRascunho(f => ({ ...f, semTag: e.target.checked, tags: [] }))} />
+            Somente parâmetros sem tag
+          </label>}
+          {!rascunho.semTag && tags.isPending && <p role="status" className="dica !mb-0">Carregando tags…</p>}
+          {!rascunho.semTag && tags.error && <ErroCarregamento erro={tags.error} aoTentarNovamente={() => void tags.refetch()} />}
+          {!rascunho.semTag && tags.isSuccess && !possuiTags && <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
+            <span className="text-suave">Nenhuma tag cadastrada no catálogo.</span>
+            <Link to="/tags" onClick={fechar}>Ver tags</Link>
+          </div>}
+          {!rascunho.semTag && possuiTags && <>
+            <div className="max-h-40 overflow-y-auto grid grid-cols-1 sm:grid-cols-2 gap-x-3 gap-y-1">
+              {tags.data.map(t => <label className="alternancia" key={t.id}>
+                <input type="checkbox" disabled={t.id === tagFixa}
+                  checked={rascunho.tags.includes(t.id)}
+                  onChange={e => mudar('tags', e.target.checked ? [...rascunho.tags, t.id] : rascunho.tags.filter(id => id !== t.id))} />
+                {t.nome}
+              </label>)}
+            </div>
+            {exibirOperador && <label className="campo !mb-0">
+              <span>Combinação de tags</span>
+              <select value={rascunho.operador} onChange={e => mudar('operador', e.target.value as Filtros['operador'])}>
+                <option value="OU">Qualquer uma das tags</option><option value="E">Todas as tags</option>
+              </select>
+            </label>}
+          </>}
+        </div>
       </fieldset>
-      <div className="sticky bottom-0 bg-superficie flex gap-3 justify-end border-t border-linha pt-4 pb-1"><button type="button" className="botao fantasma" onClick={fechar}>Cancelar</button><button type="submit" className="botao">Aplicar filtros</button></div>
+      <div className="sticky bottom-0 bg-superficie flex gap-3 justify-end border-t border-linha pt-4 pb-1">
+        <button type="button" className="botao fantasma" onClick={fechar}>Cancelar</button>
+        <button type="submit" className="botao">Aplicar filtros</button>
+      </div>
     </form>
   </Dialogo>;
 }
