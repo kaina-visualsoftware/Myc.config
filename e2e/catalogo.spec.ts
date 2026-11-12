@@ -181,6 +181,8 @@ test('contorno de foco dos filtros não é recortado pela área rolável do diá
     await page.getByRole('button', { name: 'Filtros' }).click();
     const campo = page.getByRole('combobox', { name: 'Tipo', exact: true });
     await campo.focus();
+    await page.keyboard.press('Tab');
+    await page.keyboard.press('Shift+Tab');
     const resultado = await campo.evaluate(elemento => {
       const areaRolavel = elemento.closest('dialog')?.querySelector('div.overflow-y-auto');
       if (!areaRolavel) return null;
