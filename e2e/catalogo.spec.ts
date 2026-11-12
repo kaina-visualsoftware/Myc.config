@@ -171,3 +171,35 @@ for (const [width,height] of [[390,844],[768,1024],[1440,900],[1920,1080],[320,8
     await page.screenshot({ path:testInfo.outputPath(`detalhe-${width}.png`), fullPage:true });
   });
 }
+
+
+test('contorno de foco dos filtros não é recortado pela área rolável do diálogo', async ({ page }) => {
+  await preparar(page);
+  for (const width of [375, 1440]) {
+    await page.setViewportSize({ width, height: 800 });
+    await page.goto('./');
+    await page.getByRole('button', { name: 'Filtros' }).click();
+    const campo = page.getByRole('combobox', { name: 'Tipo', exact: true });
+    await campo.focus();
+    const resultado = await campo.evaluate(elemento => {
+      const areaRolavel = elemento.closest('dialog')?.querySelector('div.overflow-y-auto');
+      if (!areaRolavel) return null;
+      const campo = elemento.getBoundingClientRect();
+      const area = areaRolavel.getBoundingClientRect();
+      const css = getComputedStyle(elemento);
+      const alcance = parseFloat(css.outlineWidth) + Math.max(0, parseFloat(css.outlineOffset));
+      return {
+        esquerda: campo.left - alcance >= area.left,
+        direita: campo.right + alcance <= area.right,
+        topo: campo.top - alcance >= area.top,
+        visivel: elemento.matches(':focus-visible'),
+      };
+    });
+    expect(resultado).not.toBeNull();
+    expect(resultado?.visivel).toBe(true);
+    expect(resultado?.esquerda).toBe(true);
+    expect(resultado?.direita).toBe(true);
+    expect(resultado?.topo).toBe(true);
+    await page.keyboard.press('Escape');
+  }
+});
